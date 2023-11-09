@@ -9,21 +9,21 @@ typedef struct Point {
     int x, y;
 } Point;
 
-Point polygon[MAX_POINTS];
-Point clipper[MAX_POINTS];
+Point subjectPolygon[MAX_POINTS];
+Point clipPolygon[MAX_POINTS];
 Point triangle[3];
-int polySize = 0;
+int subjectSize = 0;
 int clipSize = 4;
 int triSize = 0;
 
-void drawPolygon(Point poly[], int size) {
+void drawPolygon(Point polygon[], int size) {
     glBegin(GL_LINE_LOOP);
     for (int i = 0; i < size; i++)
-        glVertex2i(poly[i].x, poly[i].y);
+        glVertex2i(polygon[i].x, polygon[i].y);
     glEnd();
 }
 
-Point getIntersect(Point a, Point b, Point p, Point q) {
+Point getIntersection(Point a, Point b, Point p, Point q) {
     float A1 = b.y - a.y;
     float B1 = a.x - b.x;
     float C1 = A1 * (a.x) + B1 * (a.y);
@@ -34,41 +34,41 @@ Point getIntersect(Point a, Point b, Point p, Point q) {
 
     float determinant = A1 * B2 - A2 * B1;
 
-    Point intersect = {(B2 * C1 - B1 * C2) / determinant, (A1 * C2 - A2 * C1) / determinant};
-    return intersect;
+    Point intersection = {(B2 * C1 - B1 * C2) / determinant, (A1 * C2 - A2 * C1) / determinant};
+    return intersection;
 }
 
-void sutherlandHodgman(Point inPoly[], int inSize, Point outPoly[], int *outSize, Point clipper[], int clipSize) {
+void sutherlandHodgman(Point inPolygon[], int inSize, Point outPolygon[], int *outSize, Point clipPolygon[], int clipSize) {
     for (int i = 0; i < clipSize; i++) {
-        Point p = clipper[i];
-        Point q = clipper[(i + 1) % clipSize];
+        Point p = clipPolygon[i];
+        Point q = clipPolygon[(i + 1) % clipSize];
 
-        Point tempPoly[MAX_POINTS];
+        Point tempPolygon[MAX_POINTS];
         int tempSize = 0;
 
         for (int j = 0; j < inSize; j++) {
-            Point cur = inPoly[j];
-            Point prev = inPoly[(j + inSize - 1) % inSize];
+            Point current = inPolygon[j];
+            Point previous = inPolygon[(j + inSize - 1) % inSize];
 
-            bool insideCur = (q.x - p.x) * (cur.y - p.y) > (q.y - p.y) * (cur.x - p.x);
-            bool insidePrev = (q.x - p.x) * (prev.y - p.y) > (q.y - p.y) * (prev.x - p.x);
+            bool insideCurrent = (q.x - p.x) * (current.y - p.y) > (q.y - p.y) * (current.x - p.x);
+            bool insidePrevious = (q.x - p.x) * (previous.y - p.y) > (q.y - p.y) * (previous.x - p.x);
 
-            if (insideCur) {
-                if (!insidePrev)
-                    tempPoly[tempSize++] = getIntersect(p, q, prev, cur);
-                tempPoly[tempSize++] = cur;
-            } else if (insidePrev)
-                tempPoly[tempSize++] = getIntersect(p, q, prev, cur);
+            if (insideCurrent) {
+                if (!insidePrevious)
+                    tempPolygon[tempSize++] = getIntersection(p, q, previous, current);
+                tempPolygon[tempSize++] = current;
+            } else if (insidePrevious)
+                tempPolygon[tempSize++] = getIntersection(p, q, previous, current);
         }
 
         for (int j = 0; j < tempSize; j++)
-            inPoly[j] = tempPoly[j];
+            inPolygon[j] = tempPolygon[j];
 
         inSize = tempSize;
     }
 
     for (int i = 0; i < inSize; i++)
-        outPoly[i] = inPoly[i];
+        outPolygon[i] = inPolygon[i];
 
     *outSize = inSize;
 }
@@ -76,7 +76,7 @@ void sutherlandHodgman(Point inPoly[], int inSize, Point outPoly[], int *outSize
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glColor3f(0.0, 1.0, 0.0); 
+    glColor3f(0.0, 1.0, 0.0); // Fundo verde
     glBegin(GL_POLYGON);
     glVertex2i(0, 0);
     glVertex2i(500, 0);
@@ -84,7 +84,7 @@ void display() {
     glVertex2i(0, 500);
     glEnd();
 
-    glColor3f(1.0, 0.0, 0.0); 
+    glColor3f(0.0, 0.0, 0.0);
     glBegin(GL_POLYGON);
     glVertex2i(100, 100);
     glVertex2i(400, 100);
@@ -92,13 +92,11 @@ void display() {
     glVertex2i(100, 400);
     glEnd();
 
-    glColor3f(0.0, 0.0, 1.0); 
-    glLineWidth(2.0);
-    drawPolygon(clipper, clipSize);
-    glLineWidth(1.0);
-
     glColor3f(0.0, 0.0, 0.0);
-    drawPolygon(polygon, polySize);
+    drawPolygon(clipPolygon, clipSize);
+    glColor3f(1.0, 0.0, 0.0);
+    glLineWidth(2.0);
+    drawPolygon(subjectPolygon, subjectSize);
     glFlush();
 }
 
@@ -111,20 +109,20 @@ void mouse(int button, int state, int x, int y) {
 
     if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN && triSize == 3) {
         for (int i = 0; i < 3; i++)
-            polygon[i] = triangle[i];
-        polySize = 3;
+            subjectPolygon[i] = triangle[i];
+        subjectSize = 3;
 
-        sutherlandHodgman(polygon, polySize, polygon, &polySize, clipper, clipSize);
+        sutherlandHodgman(subjectPolygon, subjectSize, subjectPolygon, &subjectSize, clipPolygon, clipSize);
         triSize = 0;
     }
     glutPostRedisplay();
 }
 
 int main(int argc, char **argv) {
-    clipper[0].x = 100; clipper[0].y = 100;
-    clipper[1].x = 400; clipper[1].y = 100;
-    clipper[2].x = 400; clipper[2].y = 400;
-    clipper[3].x = 100; clipper[3].y = 400;
+    clipPolygon[0].x = 100; clipPolygon[0].y = 100;
+    clipPolygon[1].x = 400; clipPolygon[1].y = 100;
+    clipPolygon[2].x = 400; clipPolygon[2].y = 400;
+    clipPolygon[3].x = 100; clipPolygon[3].y = 400;
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
     glutInitWindowSize(500, 500);
